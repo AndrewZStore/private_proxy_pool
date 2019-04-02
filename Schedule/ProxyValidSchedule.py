@@ -54,10 +54,10 @@ class ProxyValidSchedule(ProxyManager, object):
         self.putQueue()
         while True:
             if not self.queue.empty():
-                self.log.info("Start valid useful proxy")
+                self.log.info("ProxyValidSchedule: Start detection useful proxy")
                 self.__validProxy()
             else:
-                self.log.info('Valid Complete! sleep 5 minutes.')
+                self.log.info('ProxyValidSchedule: Useful proxy detection Complete! sleep 10 minutes.')
                 time.sleep(60 * 5)
                 self.putQueue()
 
@@ -72,7 +72,7 @@ def run():
     p = ProxyValidSchedule()
     p.main()
     ap = BlockingScheduler()
-    ap.add_job(p.main, 'interval', minutes=10)
+    ap.add_job(p.main, 'interval', minutes=10)  # 每10分钟检测一次useful proxy
     ap.start()
 
 if __name__ == '__main__':

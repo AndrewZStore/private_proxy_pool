@@ -18,7 +18,7 @@ from lxml import etree
 from Util.LogHandler import LogHandler
 from Util.WebRequest import WebRequest
 
-logger = LogHandler(__name__, stream=False)
+logger = LogHandler(__name__, file=False)
 
 
 # noinspection PyPep8Naming
@@ -98,15 +98,32 @@ def validUsefulProxy(proxy):
     """
     if isinstance(proxy, bytes):
         proxy = proxy.decode('utf8')
-    proxies = {"http": "http://{proxy}".format(proxy=proxy)}
+    # TODO 编写设置，测试http代理还是测试https代理
+    # TODO 测试代理，以自定义的url进行测试
+    proxies = {"https": "http://{proxy}".format(proxy=proxy)}
     try:
         # 超过5秒的代理就不要了，不是高匿的代理也不要
-        r = requests.get('http://httpbin.org/ip', proxies=proxies, timeout=5, verify=False)
+        r = requests.get('https://httpbin.org/get', proxies=proxies, timeout=5, verify=False)
+        headers = r.json().get('headers')
+        if not headers:
+            raise Exception('fail get headers:', proxy)
+        if headers.get('Ngx-Client-Ip', None):
+            raise Exception('Transparent proxy:', proxy)
+        if headers.get('Cdn-Src-Ip', None):
+            raise Exception('Transparent proxy')
+        if headers.get('X-Via', None):
+            raise Exception('Ordinary anonymity proxy', proxy)
+        if headers.get('X-Proxy-Id', None):
+            raise Exception('Ordinary anonymity proxy', proxy)
+
         proxy_set = set()
-        for p in r.json()['origin'].split(' ,'):
+        for p in r.json().get('origin').split(','):
             proxy_set.add(p.strip())
-        if r.status_code == 200 and len(proxy_set) == 1 and proxy_set.pop() == proxy.split(':')[0].strip():
-            return True
+
+        if len(proxy_set) != 1:
+            raise Exception('Not hign anonymity proxy:', proxy)
+
+        return True
     except Exception as e:
-        # logger.error(str(e))
+        logger.info(str(e))
         return False

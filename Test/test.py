@@ -1,8 +1,12 @@
 import requests
 from lxml import etree
+from Manager.ProxyManager import ProxyManager
+import time
+from DB.DbClient import DbClient
+import threading
 
 
-class ProxyTest(object):
+class FreeProxyTest(object):
 
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -12,36 +16,36 @@ class ProxyTest(object):
     }
 
     def __init__(self):
-        self.proxy = None
+        self.pm = ProxyManager()
 
-    def testWeb(self):
+    def getAll(self):
+        # 获取redis数据库useful proxy
+        return self.pm.getAll()
+
+    def testWeb(self, proxy=None):
+        proxies = None
+        if proxy:
+            proxies = {'https': 'http://' + proxy}
+
         url = 'https://www.zhipin.com/'
-        resp = requests.get(url, proxies=self.proxy, timeout=15, headers=self.headers)
-        print('status_code:', resp.status_code)
-        print('text:\n', resp.text)
-        print('-' * 100)
-
-    def testHttpbinIp(self):
-        url = 'http://httpbin.org/ip'
-        resp = requests.get(url, proxies=self.proxy, timeout=15)
-        print('status_code:', resp.status_code)
-        print('text:\n', resp.text)
-        print('-'*100)
-
-    def testHttpbinHeaders(self):
-        url = 'http://httpbin.org/headers'
-        resp = requests.get(url, proxies=self.proxy, timeout=15)
+        try:
+            resp = requests.get(url, proxies=proxies, timeout=10, headers=self.headers)
+        except Exception as e:
+            print(e)
+            if proxy:
+                self.pm.delete(proxy)
+            return
         print('status_code:', resp.status_code)
         print('text:\n', resp.text)
         print('-' * 100)
 
     def testHttpbinGet(self, proxy=None):
+        proxies = None
         if proxy:
-            self.proxy = proxy
-            print(self.proxy)
-        url = 'http://httpbin.org/get'
+            proxies = {'https': 'http://' + proxy}
+        url = 'https://httpbin.org/get'
         try:
-            resp = requests.get(url, proxies=self.proxy, timeout=15)
+            resp = requests.get(url, proxies=proxies, timeout=10)
         except Exception as e:
             print(e)
             return
@@ -58,48 +62,144 @@ class ProxyTest(object):
             proxy = resp.text
             print(proxy)
 
-        self.proxy = {'http': 'http://' + proxy}
+        self.proxies = {'https': 'http://' + proxy}
 
-    def getTransparentProxy(self):
-        TransparentProies = []
-        url = 'https://www.kuaidaili.com/free/intr/1/'
-        resp = requests.get(url, headers=self.headers, timeout=15)
-        if resp.status_code != 200:
-            raise Exception('fail get transparent proxy')
-        html_tree = etree.HTML(resp.text)
-        all_tr = html_tree.xpath('//table[@class="table table-bordered table-striped"]/tbody//tr')
-        for tr in all_tr:
-            try:
-                ip = tr.xpath('.//td[1]/text()')[0]
-                port = tr.xpath('.//td[2]/text()')[0]
-                proxy = {'http': 'http://%s:%s' % (ip, port)}
-                TransparentProies.append(proxy)
-            except:
-                pass
 
-        return TransparentProies
+class PayProxyTest(object):
 
-proxy = '119.180.183.197:8060'
-proxies = {"http": "http://" + proxy}
-r = requests.get('http://httpbin.org/ip', proxies=proxies, timeout=5, verify=False)
-proxy_set = set()
-for p in r.json()['origin'].split(','):
-    proxy_set.add(p.strip())
+    def __init__(self):
+        self.db = DbClient()
+        self.db.changeTable('useful_proxy')
 
-if r.status_code == 200 and len(proxy_set) == 1 and proxy_set.pop() == proxy.split(':')[0].strip():
-    print(proxy)
-    print('hellow')
+    def GetProxy(self):
+        try:
+            time1 = time.time()
+            url = 'https://api.2808proxy.com/proxy/unify/get?token=Y3AEO9WES4U3WKQAJXZO8DYM7LAZFOQN&amount=1&proxy_type=http&format=json&splitter=rn&expire=300'
+            resp = requests.get(url)
+            ip = resp.json().get('data')[0].get('ip')
+            http_port = resp.json().get('data')[0].get('http_port')
+            proxy = '%s:%s' % (ip, http_port)
+            print(proxy)
+            time2 = time.time()
+            print(resp.json())
+            print('总耗时：', time2 - time1)
+        except Exception as e:
+            print(e)
+
+    def InsertProxy(self, proxy):
+        self.db.put(proxy)
 
 
 if __name__ == '__main__':
-    # p = ProxyTest()
-    # p.testHttpbinGet({"http": "http://49.51.70.42:1080"})
-    # proxies = p.getTransparentProxy()
-    # for proxy in proxies:
-    #     p.testHttpbinGet(proxy)
-    # p.getProxy('119.180.176.30:8060')
-    # p.testHttpbinIp()
-    # p.testHttpbinHeaders()
-    # p.testWeb()
+    pt = FreeProxyTest()
+    # proxy_list = pt.getAll()
+    # for proxy in proxy_list:
+    #     print(proxy)
+    #     pt.testWeb(proxy)
+    pt.testWeb('49.84.150.163:8883')
     pass
+    # time1 = time.time()
+    # p = PayProxyTest()
+    # for i in range(32):
+    #     p.GetProxy()
+    #     time.sleep(1)
+    # time2 = time.time()
+    # print('总耗时：', time2 - time1)
+    # p.GetProxy()
 
+'''
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Host": "httpbin.org", 
+    "Ngx-Client-Ip": "118.212.200.40", 
+    "User-Agent": "python-requests/2.21.0"
+  }, 
+  "origin": "39.134.66.13, 39.134.66.13",   39.134.66.13:8080
+  "url": "https://httpbin.org/get"
+}
+
+14.115.105.236:808
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Host": "httpbin.org", 
+    "User-Agent": "python-requests/2.21.0", 
+    "X-Proxy-Id": "1998266779"
+  }, 
+  "origin": "118.212.200.40, 14.20.235.4, 118.212.200.40", 
+  "url": "https://httpbin.org/get"
+}
+
+196.13.208.23:8080
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept-Encoding": "gzip", 
+    "Host": "httpbin.org", 
+    "If-Modified-Since": "Thu, 28 Mar 2019 08:00:17 GMT", 
+    "User-Agent": "Go-http-client/1.1"
+  }, 
+  "origin": "196.13.208.23, 196.13.208.23", 
+  "url": "https://httpbin.org/get"
+}
+
+47.107.227.104:8888
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Cache-Control": "max-age=259200", 
+    "Host": "httpbin.org", 
+    "User-Agent": "python-requests/2.21.0"
+  }, 
+  "origin": "118.212.200.40, 47.107.227.104, 118.212.200.40", 
+  "url": "https://httpbin.org/get"
+}
+
+
+
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Host": "httpbin.org", 
+    "User-Agent": "python-requests/2.21.0", 
+    "X-Via": "Cache-26"
+  }, 
+  "origin": "39.137.77.66, 39.137.77.66", 
+  "url": "https://httpbin.org/get"
+}
+
+status_code: 200
+text:
+ {
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Host": "httpbin.org", 
+    "User-Agent": "python-requests/2.21.0"
+  }, 
+  "origin": "61.135.180.26, 61.135.180.26", 
+  "url": "https://httpbin.org/get"
+}
+
+
+'''
